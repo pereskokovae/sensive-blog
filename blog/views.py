@@ -13,7 +13,7 @@ def serialize_post(post):
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in post.tags.all()],
-        'first_tag_title': post.tags.all()[0].title,
+        'first_tag_title': post.tags.first().title,
     }
 
 
@@ -26,16 +26,14 @@ def serialize_tag(tag):
 
 def index(request):
     popular_posts = Post.objects.popular().prefetch_related('author')[:5]
-
-    for post in popular_posts:
-        post.comments_amount = Post.objects.fetch_with_comments_count()[post.id]
+    Post.objects.fetch_with_comments_count(popular_posts)
 
     fresh_posts = Post.objects.annotate(
         comments_amount=Count("comments")
         ).order_by('published_at').prefetch_related('author')
     most_fresh_posts = list(fresh_posts)[-5:]
 
-    most_popular_tags = Tag.objects.popular()[:5]
+    most_popular_tags = Tag.objects.popular().annotate(Count('posts'))[:5]
 
     context = {
         'most_popular_posts': [
@@ -52,8 +50,11 @@ def index(request):
 
 
 def post_detail(request, slug):
-    post = Post.objects.get(slug=slug)
-    comments = Comment.objects.filter(post=post)
+    post = Post.objects.annotate(
+        likes_amount=Count('likes'),
+        distinct=True
+        ).prefetch_related('author').get(slug=slug)
+    comments = Comment.objects.filter(post=post).select_related('author')
     serialized_comments = []
     for comment in comments:
         serialized_comments.append({
@@ -62,8 +63,6 @@ def post_detail(request, slug):
             'author': comment.author.username,
         })
 
-    likes = post.likes.all().count()
-
     related_tags = post.tags.all()
 
     serialized_post = {
@@ -71,7 +70,7 @@ def post_detail(request, slug):
         'text': post.text,
         'author': post.author.username,
         'comments': serialized_comments,
-        'likes_amount': likes,
+        'likes_amount': post.likes_amount,
         'image_url': post.image.url if post.image else None,
         'published_at': post.published_at,
         'slug': post.slug,
