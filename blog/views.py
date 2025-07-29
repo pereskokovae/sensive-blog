@@ -13,7 +13,7 @@ def serialize_post(post):
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in post.tags.all()],
-        'first_tag_title': post.tags.first().title,
+        'first_tag_title': post.tags.all()[0],
     }
 
 
@@ -33,7 +33,7 @@ def index(request):
         ).order_by('published_at').prefetch_related(Prefetch('author'))
     most_fresh_posts = list(fresh_posts)[-5:]
 
-    most_popular_tags = Tag.objects.popular().annotate(Count('posts'))[:5]
+    most_popular_tags = Tag.objects.popular()[:5]
 
     context = {
         'most_popular_posts': [

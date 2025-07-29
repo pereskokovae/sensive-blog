@@ -4,6 +4,7 @@ from blog.models import Post, Tag, Comment
 
 class CommentAdmin(admin.ModelAdmin):
     raw_id_fields = ["post", "author"]
+    list_display = ["author"]
 
 
 class PostAdmin(admin.ModelAdmin):
