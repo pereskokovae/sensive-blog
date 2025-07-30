@@ -1,7 +1,7 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 
 
 class PostQuerySet(models.QuerySet):
@@ -10,24 +10,14 @@ class PostQuerySet(models.QuerySet):
         popular_posts = self.annotate(likes_amount=Count(
             'likes',
             distinct=True
-            )).order_by('-likes_amount').prefetch_related('tags')
+            )).order_by('-likes_amount').prefetch_related(Prefetch('author'))
         return popular_posts
 
-    def fetch_with_comments_count(self, popular_posts):
-        posts_ids = [post.id for post in popular_posts]
-        posts_with_comments = self.filter(
-            id__in=posts_ids
-            ).annotate(comments_amount=Count('comments', distinct=True))
-
-        comments_and_ids = dict(posts_with_comments.values_list(
-            'id',
-            'comments_amount'
-        ))
-
-        for post in popular_posts:
-            post.comments_amount = comments_and_ids[post.id]
-
-        return post.comments_amount
+    def fetch_with_comments_count(self):
+        return self.annotate(comments_amount=Count(
+            'comments',
+            distinct=True
+            )).prefetch_related(Prefetch('tags'))
 
 
 class Post(models.Model):
@@ -36,7 +26,6 @@ class Post(models.Model):
     slug = models.SlugField('Название в виде url', max_length=200)
     image = models.ImageField('Картинка')
     published_at = models.DateTimeField('Дата и время публикации')
-    objects = PostQuerySet.as_manager()
 
     author = models.ForeignKey(
         User,
@@ -52,6 +41,8 @@ class Post(models.Model):
         'Tag',
         related_name='posts',
         verbose_name='Теги')
+
+    objects = PostQuerySet.as_manager()
 
     def __str__(self):
         return self.title
@@ -76,6 +67,7 @@ class TagQuerySet(models.QuerySet):
 
 class Tag(models.Model):
     title = models.CharField('Тег', max_length=20, unique=True)
+
     objects = TagQuerySet.as_manager()
 
     def __str__(self):
